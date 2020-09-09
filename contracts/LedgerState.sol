@@ -4,7 +4,7 @@ pragma experimental ABIEncoderV2;
 import "./StringUtils.sol";
 
 contract LedgerState {
-    struct StateAccumulator {
+    struct StateCommittment {
         bytes32 value;
         uint256 height;
         bool ratified;
@@ -15,41 +15,41 @@ contract LedgerState {
         uint256 quorum;
     }
 
-    event AccumulatorProposed(
-        bytes32 indexed accumulator,
+    event CommittmentProposed(
+        bytes32 indexed committment,
         string member,
         bytes32 signature,
         uint256 indexed height
     );
 
     event VoteReceived(
-        bytes32 indexed accumulator,
+        bytes32 indexed committment,
         string member,
         bytes32 signature,
         uint256 indexed heightt
     );
 
-    event AccumulatorRatified(
-        bytes32 indexed accumulator,
+    event CommittmentRatified(
+        bytes32 indexed committment,
         uint256 indexed height
     );
 
-    event AccumulatorConflictDetected(
+    event CommittmentConflictDetected(
         uint256 indexed height,
-        bytes32 assumedAcc,
-        bytes32 conflictingAcc,
+        bytes32 assumedComm,
+        bytes32 conflictingComm,
         bytes32 signature,
         string member
     );
 
     mapping(address => string) committee;
-    mapping(uint256 => StateAccumulator) accumulators;
+    mapping(uint256 => StateCommittment) committments;
     mapping(uint256 => address) committeeIndex;
     uint256 committeeSize;
 
     Policy policy;
-    uint256 currAcc;
-    uint256 candAcc;
+    uint256 currComm;
+    uint256 candComm;
     address admin;
 
     constructor() public {
@@ -59,7 +59,8 @@ contract LedgerState {
     function setManagementCommittee(
         address[] calldata memEthAdds,
         string[] calldata memDLTPubKeys
-    ) external returns (bool) {
+    ) external {
+        require(msg.sender == admin, "only an admin can update the committee");
         require(
             memEthAdds.length == memDLTPubKeys.length,
             "For each member in the committe there should be an Ethereum address and a corresponding public key in the permissioned DLT"
@@ -69,6 +70,7 @@ contract LedgerState {
             committee[memEthAdds[i]] = memDLTPubKeys[i];
             committeeIndex[i] = memEthAdds[i];
         }
+        // TODO: emit an event when this happens
     }
 
     function getManagementCommittee()
@@ -91,22 +93,31 @@ contract LedgerState {
     }
 
     /**
-	@notice Get the latest ratified accumulator
-	@return the latest accumulator and the ledger height for which it was computed
+	@notice Get the latest ratified committment
+	@return the latest committment and the ledger height for which it was computed
 	*/
-    function getAccumulator() external view returns (bytes32, uint256) {
-        return (accumulators[currAcc].value, accumulators[currAcc].height);
+    function getCommittment() external view returns (bytes32, uint256) {
+        return (committments[currComm].value, committments[currComm].height);
     }
 
-    function addAccumulator(
-        bytes32 _acc,
+    function getCandidateCommittment()
+        external
+        view
+        returns (bytes32, uint256)
+    {
+        return (committments[candComm].value, committments[candComm].height);
+    }
+
+    function postCommittment(
+        bytes32 _comm,
         bytes32 _signature,
         uint256 _height
     ) external returns (bool) {
+        require(committeeSize > 0, "there is not management committee set");
+
         require(
-            _height > accumulators[currAcc].height &&
-                _height > accumulators[candAcc].height,
-            "votes on already ratified accumulators are not allowed"
+            policy.quorum > 0,
+            "a policy for quorum size has not been configured yet"
         );
 
         require(
@@ -115,34 +126,40 @@ contract LedgerState {
         );
 
         require(
-            policy.quorum != 0,
-            "a policy for quorum size has not been configured yet"
+            _height > 0,
+            "the ledger height for snapshop has to be greater than zero"
         );
 
-        if (_height == candAcc) {
-            if (_acc == accumulators[candAcc].value) {
-                emit AccumulatorConflictDetected(
+        require(
+            _height > committments[currComm].height &&
+                _height > committments[candComm].height,
+            "votes on already ratified committments are not allowed"
+        );
+
+        if (_height == candComm) {
+            if (_comm == committments[candComm].value) {
+                emit CommittmentConflictDetected(
                     _height,
-                    accumulators[candAcc].value,
-                    _acc,
+                    committments[candComm].value,
+                    _comm,
                     _signature,
                     committee[msg.sender]
                 );
                 return false;
             }
-            accumulators[candAcc].votesTally += 1;
-            if (accumulators[candAcc].votesTally >= policy.quorum) {
-                accumulators[candAcc].ratified = true;
-                emit AccumulatorRatified(_acc, _height);
+            committments[candComm].votesTally += 1;
+            if (committments[candComm].votesTally >= policy.quorum) {
+                committments[candComm].ratified = true;
+                emit CommittmentRatified(_comm, _height);
             }
         } else {
-            accumulators[_height] = StateAccumulator({
-                value: _acc,
+            committments[_height] = StateCommittment({
+                value: _comm,
                 height: _height,
                 votesTally: 1,
                 ratified: false
             });
-            candAcc = _height;
+            candComm = _height;
             return true;
         }
     }
@@ -153,7 +170,9 @@ contract LedgerState {
 	*/
     function setPolicy(uint256 quorum) external {
         require(msg.sender == admin, "only the admin can update policy");
+        require(quorum > 0, "quorum size cannot be zero");
         policy = Policy({quorum: quorum});
+        // TODO: emit an event
     }
 
     function getPolicy() public view returns (uint256) {
