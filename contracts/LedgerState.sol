@@ -8,6 +8,7 @@ contract LedgerState {
         bytes32 value;
         uint256 height;
         bool ratified;
+        bool disputed;
         uint256 votesTally;
     }
 
@@ -31,7 +32,8 @@ contract LedgerState {
 
     event CommittmentRatified(
         bytes32 indexed committment,
-        uint256 indexed height
+        uint256 indexed height,
+        uint256 voteTally
     );
 
     event CommittmentConflictDetected(
@@ -103,16 +105,20 @@ contract LedgerState {
     function getCandidateCommittment()
         external
         view
-        returns (bytes32, uint256)
+        returns (
+            bytes32,
+            uint256,
+            uint256
+        )
     {
-        return (committments[candComm].value, committments[candComm].height);
+        return (
+            committments[candComm].value,
+            committments[candComm].height,
+            committments[candComm].votesTally
+        );
     }
 
-    function postCommittment(
-        bytes32 _comm,
-        bytes32 _signature,
-        uint256 _height
-    ) external returns (bool) {
+    function checkCommitAllowed(uint256 _height) private view {
         require(committeeSize > 0, "there is not management committee set");
 
         require(
@@ -131,37 +137,83 @@ contract LedgerState {
         );
 
         require(
+            committments[_height].disputed == false,
+            "the committment is currently disputed"
+        );
+    }
+
+    function flagConflict(
+        uint256 _height,
+        bytes32 _comm,
+        bytes32 _signature
+    ) private {
+        committments[_height].disputed = true;
+
+        emit CommittmentConflictDetected(
+            _height,
+            committments[_height].value,
+            _comm,
+            _signature,
+            committee[msg.sender]
+        );
+    }
+
+    function reportConflictingCommittment(
+        uint256 _height,
+        bytes32 _comm,
+        bytes32 _signature
+    ) external {
+        checkCommitAllowed(_height);
+        require(
+            committments[_height].value != _comm,
+            "a conflicting committment cannot be the same as the saved committment"
+        );
+        flagConflict(_height, _comm, _signature);
+    }
+
+    function postCommittment(
+        bytes32 _comm,
+        bytes32 _signature,
+        uint256 _height
+    ) external returns (bool) {
+        //TODO prevent double voting scenario
+        checkCommitAllowed(_height);
+
+        require(
             _height > committments[currComm].height &&
-                _height > committments[candComm].height,
+                _height >= committments[candComm].height,
             "votes on already ratified committments are not allowed"
         );
 
         if (_height == candComm) {
-            if (_comm == committments[candComm].value) {
-                emit CommittmentConflictDetected(
-                    _height,
-                    committments[candComm].value,
-                    _comm,
-                    _signature,
-                    committee[msg.sender]
-                );
+            if (_comm != committments[candComm].value) {
+                flagConflict(_height, _comm, _signature);
                 return false;
             }
             committments[candComm].votesTally += 1;
             if (committments[candComm].votesTally >= policy.quorum) {
                 committments[candComm].ratified = true;
-                emit CommittmentRatified(_comm, _height);
+                emit CommittmentRatified(
+                    _comm,
+                    _height,
+                    committments[candComm].votesTally
+                );
+                currComm = candComm;
             }
-        } else {
-            committments[_height] = StateCommittment({
-                value: _comm,
-                height: _height,
-                votesTally: 1,
-                ratified: false
-            });
-            candComm = _height;
             return true;
         }
+        address[] memory votes = new address[](1);
+        votes[0] = msg.sender;
+
+        committments[_height] = StateCommittment({
+            value: _comm,
+            height: _height,
+            votesTally: 1,
+            ratified: false,
+            disputed: false
+        });
+        candComm = _height;
+        return true;
     }
 
     /**
