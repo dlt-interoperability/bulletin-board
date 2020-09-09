@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
-pragma solidity >0.7.0;
+pragma solidity >0.4;
 pragma experimental ABIEncoderV2;
 import "./StringUtils.sol";
 
-contract LedgerStateContract {
+contract LedgerState {
     struct StateAccumulator {
         bytes32 value;
         uint height;
@@ -44,26 +44,30 @@ contract LedgerStateContract {
 
     mapping(address => string) committee;
     mapping(uint => StateAccumulator) accumulators;
+    Policy policy;
     uint currAcc;
     uint candAcc;
     address admin;
-    Policy policy;
 
-    constructor() {
+    constructor() public {
         admin = msg.sender;
     }
 
     function setCommittee(
         address[] calldata memEthAdds,
-        string[] calldata memDLTAdds
+        string[] calldata memDLTPubKeys
     ) external returns (bool) {
         require(
-            memEthAdds.length == memDLTAdds.length,
+            memEthAdds.length == memDLTPubKeys.length,
             "For each member in the committe there should be an Ethereum address and a corresponding public key in the permissioned DLT"
         );
         for (uint i = 0; i < memEthAdds.length; i++) {
-            committee[memEthAdds[i]] = memDLTAdds[i];
+            committee[memEthAdds[i]] = memDLTPubKeys[i];
         }
+    }
+
+    function getCommitteeMemberDLTPubKey() public view returns (string memory) {
+        return committee[msg.sender];
     }
 
     /**
@@ -125,6 +129,10 @@ contract LedgerStateContract {
     function setPolicy(uint quorum) external {
         require(msg.sender == admin, "only the admin can update policy");
         policy = Policy({quorum: quorum});
+    }
+
+    function getPolicy() public view returns (uint){
+        return policy.quorum;
     }
 
     function getAdmin() public view returns (address) {

@@ -1,5 +1,5 @@
-const ConvertLib = artifacts.require("StringUtils");
-const MetaCoin = artifacts.require("LedgerState");
+const StringUtils = artifacts.require("StringUtils");
+const LedgerState = artifacts.require("LedgerState");
 
 module.exports = function(deployer) {
   deployer.deploy(StringUtils);
