@@ -6,36 +6,36 @@ import "./StringUtils.sol";
 contract LedgerState {
     struct StateAccumulator {
         bytes32 value;
-        uint height;
+        uint256 height;
         bool ratified;
-        uint votesTally;
+        uint256 votesTally;
     }
 
     struct Policy {
-        uint quorum;
+        uint256 quorum;
     }
 
     event AccumulatorProposed(
         bytes32 indexed accumulator,
         string member,
         bytes32 signature,
-        uint indexed height
+        uint256 indexed height
     );
 
     event VoteReceived(
         bytes32 indexed accumulator,
         string member,
         bytes32 signature,
-        uint indexed heightt
+        uint256 indexed heightt
     );
 
     event AccumulatorRatified(
         bytes32 indexed accumulator,
-        uint indexed height
+        uint256 indexed height
     );
 
     event AccumulatorConflictDetected(
-        uint indexed height,
+        uint256 indexed height,
         bytes32 assumedAcc,
         bytes32 conflictingAcc,
         bytes32 signature,
@@ -43,17 +43,20 @@ contract LedgerState {
     );
 
     mapping(address => string) committee;
-    mapping(uint => StateAccumulator) accumulators;
+    mapping(uint256 => StateAccumulator) accumulators;
+    mapping(uint256 => address) committeeIndex;
+    uint256 committeeSize;
+
     Policy policy;
-    uint currAcc;
-    uint candAcc;
+    uint256 currAcc;
+    uint256 candAcc;
     address admin;
 
     constructor() public {
         admin = msg.sender;
     }
 
-    function setCommittee(
+    function setManagementCommittee(
         address[] calldata memEthAdds,
         string[] calldata memDLTPubKeys
     ) external returns (bool) {
@@ -61,9 +64,26 @@ contract LedgerState {
             memEthAdds.length == memDLTPubKeys.length,
             "For each member in the committe there should be an Ethereum address and a corresponding public key in the permissioned DLT"
         );
-        for (uint i = 0; i < memEthAdds.length; i++) {
+        committeeSize = memEthAdds.length;
+        for (uint256 i = 0; i < memEthAdds.length; i++) {
             committee[memEthAdds[i]] = memDLTPubKeys[i];
+            committeeIndex[i] = memEthAdds[i];
         }
+    }
+
+    function getManagementCommittee()
+        external
+        view
+        returns (address[] memory, string[] memory)
+    {
+        address[] memory adds = new address[](committeeSize);
+        string[] memory pks = new string[](committeeSize);
+        for (uint256 i = 0; i < committeeSize; i++) {
+            address addr = committeeIndex[i];
+            adds[i] = addr;
+            pks[i] = committee[addr];
+        }
+        return (adds, pks);
     }
 
     function getCommitteeMemberDLTPubKey() public view returns (string memory) {
@@ -74,14 +94,14 @@ contract LedgerState {
 	@notice Get the latest ratified accumulator
 	@return the latest accumulator and the ledger height for which it was computed
 	*/
-    function getAccumulator() external view returns (bytes32, uint) {
+    function getAccumulator() external view returns (bytes32, uint256) {
         return (accumulators[currAcc].value, accumulators[currAcc].height);
     }
 
     function addAccumulator(
         bytes32 _acc,
         bytes32 _signature,
-        uint _height
+        uint256 _height
     ) external returns (bool) {
         require(
             _height > accumulators[currAcc].height &&
@@ -92,6 +112,11 @@ contract LedgerState {
         require(
             !isEmpty(committee[msg.sender]),
             "voter is not a known committee member"
+        );
+
+        require(
+            policy.quorum != 0,
+            "a policy for quorum size has not been configured yet"
         );
 
         if (_height == candAcc) {
@@ -105,7 +130,7 @@ contract LedgerState {
                 );
                 return false;
             }
-            accumulators[candAcc].votesTally +=1;
+            accumulators[candAcc].votesTally += 1;
             if (accumulators[candAcc].votesTally >= policy.quorum) {
                 accumulators[candAcc].ratified = true;
                 emit AccumulatorRatified(_acc, _height);
@@ -126,12 +151,12 @@ contract LedgerState {
 	@notice Assign the policy that governs operations of the contract.
 	@param quorum the minimum number of nodes that need to vote to ratify a state committment
 	*/
-    function setPolicy(uint quorum) external {
+    function setPolicy(uint256 quorum) external {
         require(msg.sender == admin, "only the admin can update policy");
         policy = Policy({quorum: quorum});
     }
 
-    function getPolicy() public view returns (uint){
+    function getPolicy() public view returns (uint256) {
         return policy.quorum;
     }
 
