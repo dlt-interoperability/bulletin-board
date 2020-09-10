@@ -15,3 +15,11 @@ The bulletin board is an Ethereum smart contract responsible for managing state 
 - [*Solc*](https://solidity.readthedocs.io/en/v0.6.4/installing-solidity.html): The solidity compiler.
 ### Network Configuration and Deployment
 Todo: details to be added here
+
+## TODOs
+
+- Signature verification on committment votes
+- Handling more failure and edge cases
+- More BDD tests
+- Refactoring and cleanup (separate committee management to `LedgerCommitee.sol`)
+- Basic optimisation of code
