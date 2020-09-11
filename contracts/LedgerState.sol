@@ -71,6 +71,27 @@ contract LedgerState {
         _;
     }
 
+    modifier validCommitPreconditions(uint256 _height) {
+        require(committeeSize > 0, "there is not management committee set");
+
+        require(
+            policy.quorum > 0,
+            "a policy for quorum size has not been configured yet"
+        );
+
+        require(
+            _height > 0,
+            "the ledger height for snapshop has to be greater than zero"
+        );
+
+        require(
+            commitments[_height].disputed == false,
+            "the commitment is currently disputed"
+        );
+
+        _;
+    }
+
     function setManagementCommittee(
         address[] calldata memEthAdds,
         string[] calldata memDLTPubKeys
@@ -143,25 +164,6 @@ contract LedgerState {
         );
     }
 
-    function checkCommitAllowed(uint256 _height) private view {
-        require(committeeSize > 0, "there is not management committee set");
-
-        require(
-            policy.quorum > 0,
-            "a policy for quorum size has not been configured yet"
-        );
-
-        require(
-            _height > 0,
-            "the ledger height for snapshop has to be greater than zero"
-        );
-
-        require(
-            commitments[_height].disputed == false,
-            "the commitment is currently disputed"
-        );
-    }
-
     function flagConflict(
         uint256 _height,
         bytes32 _comm,
@@ -182,8 +184,7 @@ contract LedgerState {
         uint256 _height,
         bytes32 _comm,
         bytes32 _signature
-    ) external onlyCommitteeMembers {
-        checkCommitAllowed(_height);
+    ) external onlyCommitteeMembers validCommitPreconditions(_height) {
         require(
             commitments[_height].value != _comm,
             "a conflicting commitment cannot be the same as the saved commitment"
@@ -195,10 +196,13 @@ contract LedgerState {
         bytes32 _comm,
         bytes32 _signature,
         uint256 _height
-    ) external onlyCommitteeMembers returns (bool) {
+    )
+        external
+        onlyCommitteeMembers
+        validCommitPreconditions(_height)
+        returns (bool)
+    {
         //TODO prevent double voting scenario
-        checkCommitAllowed(_height);
-
         require(
             _height > commitments[currComm].height &&
                 _height >= commitments[candComm].height,
