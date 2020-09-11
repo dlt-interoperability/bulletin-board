@@ -9,7 +9,12 @@ contract LedgerState {
         uint256 height;
         bool ratified;
         bool disputed;
-        uint256 votesTally;
+        Vote[] votes;
+    }
+
+    struct Vote {
+        address member;
+        bytes32 signature;
     }
 
     struct Policy {
@@ -49,10 +54,11 @@ contract LedgerState {
     mapping(uint256 => address) committeeIndex;
     uint256 committeeSize;
 
-    Policy policy;
-    uint256 currComm;
-    uint256 candComm;
+    uint256 currentCommitment;
+    uint256 candidateCommitment;
+
     address admin;
+    Policy policy;
 
     constructor() public {
         admin = msg.sender;
@@ -132,7 +138,7 @@ contract LedgerState {
 	@return the latest commitment and the ledger height for which it was computed
 	*/
     function getCommitment() external view returns (bytes32, uint256) {
-        return getCommitmentAt(currComm);
+        return getCommitmentAt(currentCommitment);
     }
 
     /**
@@ -145,7 +151,7 @@ contract LedgerState {
         returns (bytes32, uint256)
     {
         // TODO: return the status of the commitment: disputed, ratified
-        return (commitments[height].value, commitments[currComm].height);
+        return (commitments[height].value, commitments[currentCommitment].height);
     }
 
     function getCandidateCommitment()
@@ -158,9 +164,9 @@ contract LedgerState {
         )
     {
         return (
-            commitments[candComm].value,
-            commitments[candComm].height,
-            commitments[candComm].votesTally
+            commitments[candidateCommitment].value,
+            commitments[candidateCommitment].height,
+            commitments[candidateCommitment].votes.length
         );
     }
 
@@ -204,39 +210,35 @@ contract LedgerState {
     {
         //TODO prevent double voting scenario
         require(
-            _height > commitments[currComm].height &&
-                _height >= commitments[candComm].height,
+            _height > commitments[currentCommitment].height &&
+                _height >= commitments[candidateCommitment].height,
             "votes on already ratified commitments are not allowed"
         );
 
-        if (_height == candComm) {
-            if (_comm != commitments[candComm].value) {
+        if (_height == candidateCommitment) {
+            if (_comm != commitments[candidateCommitment].value) {
                 flagConflict(_height, _comm, _signature);
                 return false;
             }
-            commitments[candComm].votesTally += 1;
-            if (commitments[candComm].votesTally >= policy.quorum) {
-                commitments[candComm].ratified = true;
-                emit CommitmentRatified(
-                    _comm,
-                    _height,
-                    commitments[candComm].votesTally
-                );
-                currComm = candComm;
-            }
-            return true;
+        } else {
+            commitments[_height].value = _comm;
+            commitments[_height].height = _height;
+            candidateCommitment = _height;
         }
-        address[] memory votes = new address[](1);
-        votes[0] = msg.sender;
 
-        commitments[_height] = StateCommitment({
-            value: _comm,
-            height: _height,
-            votesTally: 1,
-            ratified: false,
-            disputed: false
-        });
-        candComm = _height;
+        commitments[_height].votes.push(
+            Vote({member: msg.sender, signature: _signature})
+        );
+
+        if (commitments[candidateCommitment].votes.length >= policy.quorum) {
+            commitments[candidateCommitment].ratified = true;
+            emit CommitmentRatified(
+                _comm,
+                _height,
+                commitments[candidateCommitment].votes.length
+            );
+            currentCommitment = candidateCommitment;
+        }
         return true;
     }
 
