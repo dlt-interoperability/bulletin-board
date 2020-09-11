@@ -4,7 +4,7 @@ pragma experimental ABIEncoderV2;
 import "./StringUtils.sol";
 
 contract LedgerState {
-    struct StateCommittment {
+    struct StateCommitment {
         bytes32 value;
         uint256 height;
         bool ratified;
@@ -16,27 +16,27 @@ contract LedgerState {
         uint256 quorum;
     }
 
-    event CommittmentProposed(
-        bytes32 indexed committment,
+    event CommitmentProposed(
+        bytes32 indexed commitment,
         string member,
         bytes32 signature,
         uint256 indexed height
     );
 
     event VoteReceived(
-        bytes32 indexed committment,
+        bytes32 indexed commitment,
         string member,
         bytes32 signature,
         uint256 indexed heightt
     );
 
-    event CommittmentRatified(
-        bytes32 indexed committment,
+    event CommitmentRatified(
+        bytes32 indexed commitment,
         uint256 indexed height,
         uint256 voteTally
     );
 
-    event CommittmentConflictDetected(
+    event CommitmentConflictDetected(
         uint256 indexed height,
         bytes32 assumedComm,
         bytes32 conflictingComm,
@@ -45,7 +45,7 @@ contract LedgerState {
     );
 
     mapping(address => string) committee;
-    mapping(uint256 => StateCommittment) committments;
+    mapping(uint256 => StateCommitment) commitments;
     mapping(uint256 => address) committeeIndex;
     uint256 committeeSize;
 
@@ -58,11 +58,23 @@ contract LedgerState {
         admin = msg.sender;
     }
 
+    modifier onlyAdmin() {
+        require(msg.sender == admin, "only an admin can update the committee");
+        _;
+    }
+
+    modifier onlyCommitteeMembers() {
+        require(
+            !isEmpty(committee[msg.sender]),
+            "voter is not a known committee member"
+        );
+        _;
+    }
+
     function setManagementCommittee(
         address[] calldata memEthAdds,
         string[] calldata memDLTPubKeys
-    ) external {
-        require(msg.sender == admin, "only an admin can update the committee");
+    ) external onlyAdmin {
         require(
             memEthAdds.length == memDLTPubKeys.length,
             "For each member in the committe there should be an Ethereum address and a corresponding public key in the permissioned DLT"
@@ -95,14 +107,27 @@ contract LedgerState {
     }
 
     /**
-	@notice Get the latest ratified committment
-	@return the latest committment and the ledger height for which it was computed
+	@notice Get the latest ratified commitment
+	@return the latest commitment and the ledger height for which it was computed
 	*/
-    function getCommittment() external view returns (bytes32, uint256) {
-        return (committments[currComm].value, committments[currComm].height);
+    function getCommitment() external view returns (bytes32, uint256) {
+        return getCommitmentAt(currComm);
     }
 
-    function getCandidateCommittment()
+    /**
+	@notice Get commitment at a specific height
+	@return the latest commitment and the ledger height for which it was computed
+	*/
+    function getCommitmentAt(uint256 height)
+        public
+        view
+        returns (bytes32, uint256)
+    {
+        // TODO: return the status of the commitment: disputed, ratified
+        return (commitments[height].value, commitments[currComm].height);
+    }
+
+    function getCandidateCommitment()
         external
         view
         returns (
@@ -112,9 +137,9 @@ contract LedgerState {
         )
     {
         return (
-            committments[candComm].value,
-            committments[candComm].height,
-            committments[candComm].votesTally
+            commitments[candComm].value,
+            commitments[candComm].height,
+            commitments[candComm].votesTally
         );
     }
 
@@ -127,18 +152,13 @@ contract LedgerState {
         );
 
         require(
-            !isEmpty(committee[msg.sender]),
-            "voter is not a known committee member"
-        );
-
-        require(
             _height > 0,
             "the ledger height for snapshop has to be greater than zero"
         );
 
         require(
-            committments[_height].disputed == false,
-            "the committment is currently disputed"
+            commitments[_height].disputed == false,
+            "the commitment is currently disputed"
         );
     }
 
@@ -147,56 +167,56 @@ contract LedgerState {
         bytes32 _comm,
         bytes32 _signature
     ) private {
-        committments[_height].disputed = true;
+        commitments[_height].disputed = true;
 
-        emit CommittmentConflictDetected(
+        emit CommitmentConflictDetected(
             _height,
-            committments[_height].value,
+            commitments[_height].value,
             _comm,
             _signature,
             committee[msg.sender]
         );
     }
 
-    function reportConflictingCommittment(
+    function reportConflictingCommitment(
         uint256 _height,
         bytes32 _comm,
         bytes32 _signature
-    ) external {
+    ) external onlyCommitteeMembers {
         checkCommitAllowed(_height);
         require(
-            committments[_height].value != _comm,
-            "a conflicting committment cannot be the same as the saved committment"
+            commitments[_height].value != _comm,
+            "a conflicting commitment cannot be the same as the saved commitment"
         );
         flagConflict(_height, _comm, _signature);
     }
 
-    function postCommittment(
+    function postCommitment(
         bytes32 _comm,
         bytes32 _signature,
         uint256 _height
-    ) external returns (bool) {
+    ) external onlyCommitteeMembers returns (bool) {
         //TODO prevent double voting scenario
         checkCommitAllowed(_height);
 
         require(
-            _height > committments[currComm].height &&
-                _height >= committments[candComm].height,
-            "votes on already ratified committments are not allowed"
+            _height > commitments[currComm].height &&
+                _height >= commitments[candComm].height,
+            "votes on already ratified commitments are not allowed"
         );
 
         if (_height == candComm) {
-            if (_comm != committments[candComm].value) {
+            if (_comm != commitments[candComm].value) {
                 flagConflict(_height, _comm, _signature);
                 return false;
             }
-            committments[candComm].votesTally += 1;
-            if (committments[candComm].votesTally >= policy.quorum) {
-                committments[candComm].ratified = true;
-                emit CommittmentRatified(
+            commitments[candComm].votesTally += 1;
+            if (commitments[candComm].votesTally >= policy.quorum) {
+                commitments[candComm].ratified = true;
+                emit CommitmentRatified(
                     _comm,
                     _height,
-                    committments[candComm].votesTally
+                    commitments[candComm].votesTally
                 );
                 currComm = candComm;
             }
@@ -205,7 +225,7 @@ contract LedgerState {
         address[] memory votes = new address[](1);
         votes[0] = msg.sender;
 
-        committments[_height] = StateCommittment({
+        commitments[_height] = StateCommitment({
             value: _comm,
             height: _height,
             votesTally: 1,
@@ -218,10 +238,9 @@ contract LedgerState {
 
     /**
 	@notice Assign the policy that governs operations of the contract.
-	@param quorum the minimum number of nodes that need to vote to ratify a state committment
+	@param quorum the minimum number of nodes that need to vote to ratify a state commitment
 	*/
-    function setPolicy(uint256 quorum) external {
-        require(msg.sender == admin, "only the admin can update policy");
+    function setPolicy(uint256 quorum) external onlyAdmin {
         require(quorum > 0, "quorum size cannot be zero");
         policy = Policy({quorum: quorum});
         // TODO: emit an event

@@ -37,18 +37,18 @@ contract('LedgerState', (accounts) => {
     // 3. ensure that an event is thrown when the committee is changed
   });
 
-  it('should post a candidate committment correctly', async () => {
-    const fixComm = toBytes("some committment");
+  it('should post a candidate commitment correctly', async () => {
+    const fixComm = toBytes("some commitment");
     const fixSign = toBytes("some signatuer");
     const fixHeight = 1;
 
     const lsInstance = await LedgerState.deployed();
     await lsInstance.setManagementCommittee(fixAccs, fixPks);
 
-    await lsInstance.postCommittment(fixComm, fixSign, fixHeight);
-    const candAcc = await lsInstance.getCandidateCommittment.call();
+    await lsInstance.postCommitment(fixComm, fixSign, fixHeight);
+    const candAcc = await lsInstance.getCandidateCommitment.call();
 
-    expect(candAcc[0], "stored candidate committment does not match expected").to.have.string(fixComm);
+    expect(candAcc[0], "stored candidate commitment does not match expected").to.have.string(fixComm);
     expect(candAcc[1].toNumber(), "stored candidate height does not match expected").to.equal(fixHeight);
     expect(candAcc[2].toNumber(), "stored candidate votes does not match expected").to.equal(1);
 
@@ -57,8 +57,8 @@ contract('LedgerState', (accounts) => {
     // 2. check relevant event is emitted
   });
 
-  it('should handle votes on a candidate committment correctly', async () => {
-    const fixComm = toBytes("some committment");
+  it('should handle votes on a candidate commitment correctly', async () => {
+    const fixComm = toBytes("some commitment");
     const fixSign = toBytes("some signatuer");
     const fixHeight = 2;
 
@@ -66,20 +66,20 @@ contract('LedgerState', (accounts) => {
     await lsInstance.setManagementCommittee(fixAccs, fixPks);
     await lsInstance.setPolicy(5);
 
-    await lsInstance.postCommittment(fixComm, fixSign, fixHeight);
-    await lsInstance.postCommittment(fixComm, fixSign, fixHeight, { from: accounts[1] });
-    await lsInstance.postCommittment(fixComm, fixSign, fixHeight, { from: accounts[2] });
-    const candAcc = await lsInstance.getCandidateCommittment.call();
+    await lsInstance.postCommitment(fixComm, fixSign, fixHeight);
+    await lsInstance.postCommitment(fixComm, fixSign, fixHeight, { from: accounts[1] });
+    await lsInstance.postCommitment(fixComm, fixSign, fixHeight, { from: accounts[2] });
+    const candAcc = await lsInstance.getCandidateCommitment.call();
 
-    expect(candAcc[0], "stored candidate committment does not match expected").to.have.string(fixComm);
+    expect(candAcc[0], "stored candidate commitment does not match expected").to.have.string(fixComm);
     expect(candAcc[1].toNumber(), "stored candidate height does not match expected").to.equal(fixHeight);
     expect(candAcc[2].toNumber(), "stored candidate votes does not match expected").to.equal(3);
 
     // TODO:
     // 1. check failure scenarios  
   });
-  it('should ratify a candidate committment if enough votes are received', async () => {
-    const fixComm = toBytes("some committment");
+  it('should ratify a candidate commitment if enough votes are received', async () => {
+    const fixComm = toBytes("some commitment");
     const fixSign = toBytes("some signatuer");
     const fixHeight = 3;
 
@@ -87,24 +87,24 @@ contract('LedgerState', (accounts) => {
     await lsInstance.setManagementCommittee(fixAccs, fixPks);
     await lsInstance.setPolicy(3);
 
-    await lsInstance.postCommittment(fixComm, fixSign, fixHeight);
-    await lsInstance.postCommittment(fixComm, fixSign, fixHeight, { from: accounts[1] });
-    const lastVote = await lsInstance.postCommittment(fixComm, fixSign, fixHeight, { from: accounts[2] });
+    await lsInstance.postCommitment(fixComm, fixSign, fixHeight);
+    await lsInstance.postCommitment(fixComm, fixSign, fixHeight, { from: accounts[1] });
+    const lastVote = await lsInstance.postCommitment(fixComm, fixSign, fixHeight, { from: accounts[2] });
 
-    truffleAssert.eventEmitted(lastVote, 'CommittmentRatified');
+    truffleAssert.eventEmitted(lastVote, 'CommitmentRatified');
 
-    const currentCommit = await lsInstance.getCommittment();
-    expect(currentCommit[0], "current state committment was not replaced with ratified candidate").to.have.string(fixComm);
-    expect(currentCommit[1].toNumber(), "current committment height does not match expected").to.equal(fixHeight);
+    const currentCommit = await lsInstance.getCommitment();
+    expect(currentCommit[0], "current state commitment was not replaced with ratified candidate").to.have.string(fixComm);
+    expect(currentCommit[1].toNumber(), "current commitment height does not match expected").to.equal(fixHeight);
 
     // TODO:
     // 1. check current accumulator value
     // 2. check failure scenarios  
   });
 
-  it('should detect conflicting committment during voting', async () => {
-    const fixComm = toBytes("some committment");
-    const fixBadComm = toBytes("some other committment");
+  it('should detect conflicting commitment during voting', async () => {
+    const fixComm = toBytes("some commitment");
+    const fixBadComm = toBytes("some other commitment");
     const fixSign = toBytes("some signatuer");
     const fixHeight = 4;
 
@@ -112,14 +112,14 @@ contract('LedgerState', (accounts) => {
     await lsInstance.setManagementCommittee(fixAccs, fixPks);
     await lsInstance.setPolicy(3);
 
-    await lsInstance.postCommittment(fixComm, fixSign, fixHeight)
-    const badCommit = await lsInstance.postCommittment(fixBadComm, fixSign, fixHeight)
-    truffleAssert.eventEmitted(badCommit, 'CommittmentConflictDetected');
+    await lsInstance.postCommitment(fixComm, fixSign, fixHeight)
+    const badCommit = await lsInstance.postCommitment(fixBadComm, fixSign, fixHeight)
+    truffleAssert.eventEmitted(badCommit, 'CommitmentConflictDetected');
   });
 
   it('should handle reporting of conflicts correctly', async () => {
-    const fixComm = toBytes("some committment");
-    const fixBadComm = toBytes("some other committment");
+    const fixComm = toBytes("some commitment");
+    const fixBadComm = toBytes("some other commitment");
     const fixSign = toBytes("some signatuer");
     const fixHeight = 5;
 
@@ -127,9 +127,9 @@ contract('LedgerState', (accounts) => {
     await lsInstance.setManagementCommittee(fixAccs, fixPks);
     await lsInstance.setPolicy(3);
 
-    await lsInstance.postCommittment(fixComm, fixSign, fixHeight)
-    const conflictReport = await lsInstance.reportConflictingCommittment(fixHeight, fixBadComm, fixSign)
-    truffleAssert.eventEmitted(conflictReport, 'CommittmentConflictDetected');
+    await lsInstance.postCommitment(fixComm, fixSign, fixHeight)
+    const conflictReport = await lsInstance.reportConflictingCommitment(fixHeight, fixBadComm, fixSign)
+    truffleAssert.eventEmitted(conflictReport, 'CommitmentConflictDetected');
   });
 
 });
