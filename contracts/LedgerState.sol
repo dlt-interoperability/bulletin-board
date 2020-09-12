@@ -54,6 +54,10 @@ contract LedgerState {
         uint256 indexed height
     );
 
+    event PolicyUpdated(
+        uint256 quorum
+    );
+
     mapping(uint256 => StateCommitment) commitments;
 
     // the height of the current ratified commitment
@@ -66,15 +70,15 @@ contract LedgerState {
     uint256 candidateHeight;
 
     // the only account that is able to update policy or the management committee
-    address admin;
+    address public admin;
     // the policy that governs how commitments are ratified. currently this is a simple threshold based voting mechanism
     Policy policy;
 
-    ManagementCommittee committee;
+    ManagementCommittee public committee;
 
     constructor() {
         admin = msg.sender;
-        committee = new ManagementCommittee();
+        committee = new ManagementCommittee(admin);
     }
 
     modifier onlyAdmin() {
@@ -202,29 +206,35 @@ contract LedgerState {
         require(
             _height > commitments[currentHeight].atHeight &&
                 _height >= commitments[candidateHeight].atHeight,
-            "votes on already ratified commitments are not allowed"
+            "votes on the currently ratified or on past commitments are not allowed"
         );
 
-        if (_height == candidateHeight) {
-            if (_comm != commitments[candidateHeight].value) {
-                flagConflict(_height, _comm, _signature);
-                return false;
-            }
-        } else {
+        // if this is a vote for an already proposed candidate but is value conflicts with what is already proposed
+        if (_height == candidateHeight && _comm != commitments[candidateHeight].value) {
+            flagConflict(_height, _comm, _signature);
+            return false;
+        }
+
+        // this committment supercedes the current candidate
+        if (_height > candidateHeight) {
             commitments[_height].value = _comm;
             commitments[_height].atHeight = _height;
             candidateHeight = _height;
         }
 
+        // TODO: verify that this signature on the commitment is valid
         commitments[_height].votes.push(
             Vote({member: msg.sender, signature: _signature})
         );
 
         if (commitments[candidateHeight].votes.length >= policy.quorum) {
+            if(commitments[currentHeight].atHeight > 0)
+             commitments[currentHeight].status = Status.REPLACED;
+
             commitments[candidateHeight].status = Status.RATIFIED;
             emit CommitmentRatified(
                 _comm,
-                _height,
+                candidateHeight,
                 commitments[candidateHeight].votes.length
             );
             currentHeight = candidateHeight;
@@ -239,14 +249,10 @@ contract LedgerState {
     function setPolicy(uint256 quorum) external onlyAdmin {
         require(quorum > 0, "quorum size cannot be zero");
         policy = Policy({quorum: quorum});
-        // TODO: emit an event
+        emit PolicyUpdated(quorum);
     }
 
     function getPolicy() public view returns (uint256) {
         return policy.quorum;
-    }
-
-    function getAdmin() public view returns (address) {
-        return admin;
     }
 }

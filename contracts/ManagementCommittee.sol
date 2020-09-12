@@ -12,7 +12,7 @@ contract ManagementCommittee {
     address[] committeeList;
 
     // the only account that is able to change the committee
-    address admin;
+    address public admin;
 
     event ManagmentCommitteeUpdated();
 
@@ -21,8 +21,8 @@ contract ManagementCommittee {
         _;
     }
 
-    constructor() {
-        admin = msg.sender;
+    constructor(address _admin) {
+        admin = _admin;
     }
 
     /// @notice Set the complete list of members of a management committee.
