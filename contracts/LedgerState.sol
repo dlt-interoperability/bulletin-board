@@ -1,14 +1,15 @@
-// SPDX-License-Identifier: MIT
-pragma solidity >0.4;
+// SPDX-License-Identifier: UNLICENSED
+pragma solidity >0.6;
 pragma experimental ABIEncoderV2;
-import "./StringUtils.sol";
+import "./ManagementCommittee.sol";
 
 contract LedgerState {
+    enum Status {PROPOSED, RATIFIED, REPLACED, DISPUTED}
+
     struct StateCommitment {
         bytes32 value;
-        uint256 height;
-        bool ratified;
-        bool disputed;
+        uint256 atHeight;
+        Status status;
         Vote[] votes;
     }
 
@@ -25,43 +26,55 @@ contract LedgerState {
         bytes32 indexed commitment,
         string member,
         bytes32 signature,
-        uint256 indexed height
+        uint256 indexed atHeight
     );
-
-    event VoteReceived(
-        bytes32 indexed commitment,
-        string member,
-        bytes32 signature,
-        uint256 indexed heightt
-    );
-
     event CommitmentRatified(
         bytes32 indexed commitment,
-        uint256 indexed height,
+        uint256 indexed atHeight,
         uint256 voteTally
     );
 
+    event CommitmentReplaced(
+        uint256 indexed oldLedgerHeight,
+        uint256 indexed newLedgerHeight
+    );
+
     event CommitmentConflictDetected(
-        uint256 indexed height,
+        uint256 indexed atHeight,
         bytes32 assumedComm,
         bytes32 conflictingComm,
         bytes32 signature,
         string member
     );
 
-    mapping(address => string) committee;
+    event VoteReceived(
+        bytes32 indexed commitment,
+        string member,
+        bytes32 signature,
+        uint256 indexed height
+    );
+
     mapping(uint256 => StateCommitment) commitments;
-    mapping(uint256 => address) committeeIndex;
-    uint256 committeeSize;
 
-    uint256 currentCommitment;
-    uint256 candidateCommitment;
+    // the height of the current ratified commitment
+    uint256 currentHeight;
 
+    // the height of the proposed candidate commitment.
+    // this is a proposed commitment awaiting enough votes to be ratified.
+    // once it received enough votes it transitions into a "current" state,
+    // unless superceded by a more recent commitment or its validity is disputed.
+    uint256 candidateHeight;
+
+    // the only account that is able to update policy or the management committee
     address admin;
+    // the policy that governs how commitments are ratified. currently this is a simple threshold based voting mechanism
     Policy policy;
 
-    constructor() public {
+    ManagementCommittee committee;
+
+    constructor() {
         admin = msg.sender;
+        committee = new ManagementCommittee();
     }
 
     modifier onlyAdmin() {
@@ -71,14 +84,17 @@ contract LedgerState {
 
     modifier onlyCommitteeMembers() {
         require(
-            !isEmpty(committee[msg.sender]),
+            committee.isMember(msg.sender),
             "voter is not a known committee member"
         );
         _;
     }
 
     modifier validCommitPreconditions(uint256 _height) {
-        require(committeeSize > 0, "there is not management committee set");
+        require(
+            committee.hasMembers(),
+            "there is not management committee set"
+        );
 
         require(
             policy.quorum > 0,
@@ -87,71 +103,45 @@ contract LedgerState {
 
         require(
             _height > 0,
-            "the ledger height for snapshop has to be greater than zero"
+            "the ledger atHeight for snapshop has to be greater than zero"
         );
 
         require(
-            commitments[_height].disputed == false,
+            commitments[_height].status != Status.DISPUTED,
             "the commitment is currently disputed"
         );
 
         _;
     }
 
-    function setManagementCommittee(
-        address[] calldata memEthAdds,
-        string[] calldata memDLTPubKeys
-    ) external onlyAdmin {
-        require(
-            memEthAdds.length == memDLTPubKeys.length,
-            "For each member in the committe there should be an Ethereum address and a corresponding public key in the permissioned DLT"
-        );
-        committeeSize = memEthAdds.length;
-        for (uint256 i = 0; i < memEthAdds.length; i++) {
-            committee[memEthAdds[i]] = memDLTPubKeys[i];
-            committeeIndex[i] = memEthAdds[i];
-        }
-        // TODO: emit an event when this happens
-    }
-
-    function getManagementCommittee()
-        external
-        view
-        returns (address[] memory, string[] memory)
-    {
-        address[] memory adds = new address[](committeeSize);
-        string[] memory pks = new string[](committeeSize);
-        for (uint256 i = 0; i < committeeSize; i++) {
-            address addr = committeeIndex[i];
-            adds[i] = addr;
-            pks[i] = committee[addr];
-        }
-        return (adds, pks);
-    }
-
-    function getCommitteeMemberDLTPubKey() public view returns (string memory) {
-        return committee[msg.sender];
-    }
-
     /**
 	@notice Get the latest ratified commitment
-	@return the latest commitment and the ledger height for which it was computed
+	@return the latest ratified commitment and and the ledger height for which it was computed
 	*/
-    function getCommitment() external view returns (bytes32, uint256) {
-        return getCommitmentAt(currentCommitment);
+    function getCommitment()
+        external
+        view
+        returns (
+            bytes32,
+            Status,
+            uint256
+        )
+    {
+        (bytes32 value, Status status) = getCommitmentAt(currentHeight);
+        return (value, status, currentHeight);
     }
 
     /**
-	@notice Get commitment at a specific height
-	@return the latest commitment and the ledger height for which it was computed
+	@notice Get commitment at a specified ledger height, regardless of the state of the commitment.
+	@return the commitment at the specified height
 	*/
-    function getCommitmentAt(uint256 height)
+    function getCommitmentAt(uint256 atHeight)
         public
         view
-        returns (bytes32, uint256)
+        returns (bytes32, Status)
     {
-        // TODO: return the status of the commitment: disputed, ratified
-        return (commitments[height].value, commitments[currentCommitment].height);
+        StateCommitment memory c = commitments[atHeight];
+        return (c.value, c.status);
     }
 
     function getCandidateCommitment()
@@ -164,9 +154,9 @@ contract LedgerState {
         )
     {
         return (
-            commitments[candidateCommitment].value,
-            commitments[candidateCommitment].height,
-            commitments[candidateCommitment].votes.length
+            commitments[candidateHeight].value,
+            commitments[candidateHeight].atHeight,
+            commitments[candidateHeight].votes.length
         );
     }
 
@@ -175,14 +165,14 @@ contract LedgerState {
         bytes32 _comm,
         bytes32 _signature
     ) private {
-        commitments[_height].disputed = true;
+        commitments[_height].status = Status.DISPUTED;
 
         emit CommitmentConflictDetected(
             _height,
             commitments[_height].value,
             _comm,
             _signature,
-            committee[msg.sender]
+            committee.getDLTPublicKeyFor(msg.sender)
         );
     }
 
@@ -210,34 +200,34 @@ contract LedgerState {
     {
         //TODO prevent double voting scenario
         require(
-            _height > commitments[currentCommitment].height &&
-                _height >= commitments[candidateCommitment].height,
+            _height > commitments[currentHeight].atHeight &&
+                _height >= commitments[candidateHeight].atHeight,
             "votes on already ratified commitments are not allowed"
         );
 
-        if (_height == candidateCommitment) {
-            if (_comm != commitments[candidateCommitment].value) {
+        if (_height == candidateHeight) {
+            if (_comm != commitments[candidateHeight].value) {
                 flagConflict(_height, _comm, _signature);
                 return false;
             }
         } else {
             commitments[_height].value = _comm;
-            commitments[_height].height = _height;
-            candidateCommitment = _height;
+            commitments[_height].atHeight = _height;
+            candidateHeight = _height;
         }
 
         commitments[_height].votes.push(
             Vote({member: msg.sender, signature: _signature})
         );
 
-        if (commitments[candidateCommitment].votes.length >= policy.quorum) {
-            commitments[candidateCommitment].ratified = true;
+        if (commitments[candidateHeight].votes.length >= policy.quorum) {
+            commitments[candidateHeight].status = Status.RATIFIED;
             emit CommitmentRatified(
                 _comm,
                 _height,
-                commitments[candidateCommitment].votes.length
+                commitments[candidateHeight].votes.length
             );
-            currentCommitment = candidateCommitment;
+            currentHeight = candidateHeight;
         }
         return true;
     }
@@ -258,9 +248,5 @@ contract LedgerState {
 
     function getAdmin() public view returns (address) {
         return admin;
-    }
-
-    function isEmpty(string memory str) private pure returns (bool) {
-        return StringUtils.equal(str, "");
     }
 }

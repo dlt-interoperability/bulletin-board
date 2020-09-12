@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: UNLICENSED
+pragma solidity >0.6;
+
 library StringUtils {
     /// @dev Does a byte-by-byte lexicographical comparison of two strings.
     /// @return a negative number if `_a` is smaller, zero if they are equal
@@ -29,35 +32,7 @@ library StringUtils {
         return compare(_a, _b) == 0;
     }
 
-    /// @dev Finds the index of the first occurrence of _needle in _haystack
-    function indexOf(string memory _haystack, string memory _needle)
-        internal
-        pure
-        returns (int256)
-    {
-        bytes memory h = bytes(_haystack);
-        bytes memory n = bytes(_needle);
-        if (h.length < 1 || n.length < 1 || (n.length > h.length)) return -1;
-        else if (h.length > (2**128 - 1))
-            // since we have to be able to return -1 (if the char isn't found or input error), this function must return an "int" type with a max length of (2^128 - 1)
-            return -1;
-        else {
-            uint256 subindex = 0;
-            for (uint256 i = 0; i < h.length; i++) {
-                if (h[i] == n[0]) // found the first char of b
-                {
-                    subindex = 1;
-                    while (
-                        subindex < n.length &&
-                        (i + subindex) < h.length &&
-                        h[i + subindex] == n[subindex] // search until the chars don't match or until we reach the end of a or b
-                    ) {
-                        subindex++;
-                    }
-                    if (subindex == n.length) return int256(i);
-                }
-            }
-            return -1;
-        }
+    function isEmpty(string memory str) internal pure returns (bool) {
+        return equal(str, "");
     }
 }
