@@ -14,7 +14,6 @@ contract('LedgerState', (accounts) => {
     await mcInstance.setCommittee(fixPks, fixAccs);
   });
 
-
   it('should assign the admin to the initiator of the contract', async () => {
     const admin = await lsInstance.admin.call();
     assert.equal(admin.valueOf(), accounts[0], "Admin account does not match expected");
@@ -29,21 +28,29 @@ contract('LedgerState', (accounts) => {
     truffleAssert.eventEmitted(updateTx, 'PolicyUpdated');
   });
 
+  it('should not allow posting of a commitment by non-committee members', async () => {
+    const fixComm = toBytes("some commitment");
+    const fixSign = toBytes("some signatuer");
+    const fixHeight = 9;
+
+    await truffleAssert.reverts(lsInstance.postCommitment(fixComm, fixSign, fixHeight, { from: accounts[4] }));
+  });
+
   it('should post a candidate commitment correctly', async () => {
     const fixComm = toBytes("some commitment");
     const fixSign = toBytes("some signatuer");
     const fixHeight = 1;
 
-    await lsInstance.postCommitment(fixComm, fixSign, fixHeight);
+    const updateTx = await lsInstance.postCommitment(fixComm, fixSign, fixHeight);
     const candAcc = await lsInstance.getCandidateCommitment.call();
 
     expect(candAcc[0], "stored candidate commitment does not match expected").to.have.string(fixComm);
     expect(candAcc[1].toNumber(), "stored candidate height does not match expected").to.equal(fixHeight);
     expect(candAcc[2].toNumber(), "stored candidate votes does not match expected").to.equal(1);
 
-    // TODO:
-    // 1. check failure scenarios(non - committee member invoking, quorum not set, committee not set, old snapshot acc being proposed)
-    // 2. check relevant event is emitted
+    // ensure the relevant event was emitted
+    truffleAssert.eventEmitted(updateTx, 'CommitmentProposed');
+    truffleAssert.eventEmitted(updateTx, 'VoteReceived');
   });
 
   it('should handle votes on a candidate commitment correctly', async () => {
@@ -53,18 +60,20 @@ contract('LedgerState', (accounts) => {
 
     await lsInstance.setPolicy(5);
 
-    await lsInstance.postCommitment(fixComm, fixSign, fixHeight);
-    await lsInstance.postCommitment(fixComm, fixSign, fixHeight, { from: accounts[1] });
-    await lsInstance.postCommitment(fixComm, fixSign, fixHeight, { from: accounts[2] });
+    const updateTx1 = await lsInstance.postCommitment(fixComm, fixSign, fixHeight);
+    const updateTx2 = await lsInstance.postCommitment(fixComm, fixSign, fixHeight, { from: accounts[1] });
+    const updateTx3 = await lsInstance.postCommitment(fixComm, fixSign, fixHeight, { from: accounts[2] });
     const candAcc = await lsInstance.getCandidateCommitment.call();
 
     expect(candAcc[0], "stored candidate commitment does not match expected").to.have.string(fixComm);
     expect(candAcc[1].toNumber(), "stored candidate height does not match expected").to.equal(fixHeight);
     expect(candAcc[2].toNumber(), "stored candidate votes does not match expected").to.equal(3);
 
-    // TODO:
-    // 1. check failure scenarios
+    truffleAssert.eventEmitted(updateTx1, 'VoteReceived');
+    truffleAssert.eventEmitted(updateTx2, 'VoteReceived');
+    truffleAssert.eventEmitted(updateTx3, 'VoteReceived');
   });
+
   it('should ratify a candidate commitment if enough votes are received', async () => {
     const fixComm = toBytes("some commitment");
     const fixSign = toBytes("some signatuer");

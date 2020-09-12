@@ -48,9 +48,6 @@ contract LedgerState {
     );
 
     event VoteReceived(
-        bytes32 indexed commitment,
-        string member,
-        bytes32 signature,
         uint256 indexed height
     );
 
@@ -220,12 +217,15 @@ contract LedgerState {
             commitments[_height].value = _comm;
             commitments[_height].atHeight = _height;
             candidateHeight = _height;
+            emit CommitmentProposed(_comm, committee.getDLTPublicKeyFor(msg.sender), _signature, _height);
         }
 
         // TODO: verify that this signature on the commitment is valid
         commitments[_height].votes.push(
             Vote({member: msg.sender, signature: _signature})
         );
+
+        emit VoteReceived(_height);
 
         if (commitments[candidateHeight].votes.length >= policy.quorum) {
             if(commitments[currentHeight].atHeight > 0)
