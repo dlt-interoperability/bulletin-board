@@ -10,16 +10,33 @@ The bulletin board is an Ethereum smart contract responsible for managing state 
 
 ## Setup
 ### Prerequsites
+
 - [*Truffle*](https://www.trufflesuite.com/): A development and testing framework for Ethereum.
 
 - [*Solc*](https://solidity.readthedocs.io/en/v0.6.4/installing-solidity.html): The solidity compiler.
-### Network Configuration and Deployment
-Todo: details to be added here
 
-## TODOs
+- [*Ganache (optional)*](https://www.trufflesuite.com/docs/ganache/quickstart): A tool for creating a development Ethereum network.
 
-- Signature verification on commitment votes
-- Handling more failure and edge cases
-- More BDD tests
-- Refactoring and cleanup (separate committee management to `LedgerCommitee.sol`)
-- Basic optimisation of code
+### Testing
+
+- run `truffle test`: this compiles the relevant contracts, deploys them on a test network provided by Truffle and runs the associated unit tests.
+
+### Network Deployment (using Ganache)
+
+- Create a workspace in Ganache associated with this truffle project as instructed [here](https://www.trufflesuite.com/docs/ganache/truffle-projects/linking-a-truffle-project)
+
+- Add a new network block in [`truffle-config.js`](./truffle-config.js) containing the network details of your Ganache network, similar to `dev` configuration below:
+
+```json
+    networks: {
+        dev: {
+            host: "127.0.0.1",
+            port: 7545,
+            network_id: "*" // Match any network id
+        }
+    },
+```
+
+### TODOs
+
+- [ ] Signature verification on commitment votes

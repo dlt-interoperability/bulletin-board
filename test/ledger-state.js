@@ -90,10 +90,6 @@ contract('LedgerState', (accounts) => {
     const currentCommit = await lsInstance.getCommitment();
     expect(currentCommit[0], "current state commitment was not replaced with ratified candidate").to.have.string(fixComm);
     expect(currentCommit[2].toNumber(), "current commitment height does not match expected").to.equal(fixHeight);
-
-    // TODO:
-    // 1. check current accumulator value
-    // 2. check failure scenarios
   });
 
   it('should detect conflicting commitment during voting', async () => {
