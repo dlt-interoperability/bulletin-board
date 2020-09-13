@@ -27,7 +27,7 @@ The bulletin board is an Ethereum smart contract responsible for managing state 
 
 - Add a new network block in [`truffle-config.js`](./truffle-config.js) containing the network details of your Ganache network, similar to `dev` configuration below:
 
-```json
+```javascript
     networks: {
         dev: {
             host: "127.0.0.1",
