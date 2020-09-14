@@ -15,7 +15,6 @@ contract LedgerState {
 
     struct Vote {
         address member;
-        bytes32 signature;
     }
 
     struct Policy {
@@ -25,7 +24,6 @@ contract LedgerState {
     event CommitmentProposed(
         bytes32 indexed commitment,
         string member,
-        bytes32 signature,
         uint256 indexed atHeight
     );
     event CommitmentRatified(
@@ -43,7 +41,6 @@ contract LedgerState {
         uint256 indexed atHeight,
         bytes32 assumedComm,
         bytes32 conflictingComm,
-        bytes32 signature,
         string member
     );
 
@@ -163,8 +160,7 @@ contract LedgerState {
 
     function flagConflict(
         uint256 _height,
-        bytes32 _comm,
-        bytes32 _signature
+        bytes32 _comm
     ) private {
         commitments[_height].status = Status.DISPUTED;
 
@@ -172,26 +168,23 @@ contract LedgerState {
             _height,
             commitments[_height].value,
             _comm,
-            _signature,
             committee.getDLTPublicKeyFor(msg.sender)
         );
     }
 
     function reportConflictingCommitment(
         uint256 _height,
-        bytes32 _comm,
-        bytes32 _signature
+        bytes32 _comm
     ) external onlyCommitteeMembers validCommitPreconditions(_height) {
         require(
             commitments[_height].value != _comm,
             "a conflicting commitment cannot be the same as the saved commitment"
         );
-        flagConflict(_height, _comm, _signature);
+        flagConflict(_height, _comm);
     }
 
     function postCommitment(
         bytes32 _comm,
-        bytes32 _signature,
         uint256 _height
     )
         external
@@ -208,7 +201,7 @@ contract LedgerState {
 
         // if this is a vote for an already proposed candidate but is value conflicts with what is already proposed
         if (_height == candidateHeight && _comm != commitments[candidateHeight].value) {
-            flagConflict(_height, _comm, _signature);
+            flagConflict(_height, _comm);
             return false;
         }
 
@@ -217,12 +210,11 @@ contract LedgerState {
             commitments[_height].value = _comm;
             commitments[_height].atHeight = _height;
             candidateHeight = _height;
-            emit CommitmentProposed(_comm, committee.getDLTPublicKeyFor(msg.sender), _signature, _height);
+            emit CommitmentProposed(_comm, committee.getDLTPublicKeyFor(msg.sender), _height);
         }
 
-        // TODO: verify that this signature on the commitment is valid
         commitments[_height].votes.push(
-            Vote({member: msg.sender, signature: _signature})
+            Vote({member: msg.sender})
         );
 
         emit VoteReceived(_height);

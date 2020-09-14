@@ -36,7 +36,3 @@ The bulletin board is an Ethereum smart contract responsible for managing state 
         }
     },
 ```
-
-### TODOs
-
-- [ ] Signature verification on commitment votes
