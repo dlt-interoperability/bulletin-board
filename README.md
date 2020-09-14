@@ -17,11 +17,17 @@ The bulletin board is an Ethereum smart contract responsible for managing state 
 
 - [*Ganache (optional)*](https://www.trufflesuite.com/docs/ganache/quickstart): A tool for creating a development Ethereum network.
 
+Install project dependencies with:
+
+```
+npm install
+```
+
 ### Testing
 
 - run `truffle test`: this compiles the relevant contracts, deploys them on a test network provided by Truffle and runs the associated unit tests.
 
-### Network Deployment (using Ganache)
+### Network Deployment using Ganache GUI
 
 - Create a workspace in Ganache associated with this truffle project as instructed [here](https://www.trufflesuite.com/docs/ganache/truffle-projects/linking-a-truffle-project)
 
@@ -36,3 +42,17 @@ The bulletin board is an Ethereum smart contract responsible for managing state 
         }
     },
 ```
+
+### Network Deployment using Ganache CLI
+
+A local Ethereum blockchain can be also deployed using [Truffle's Ganache
+CLI](https://github.com/trufflesuite/ganache-cli) tool. Using the
+`--deterministic` flag will start the network with the same accounts and keys
+every time.
+
+```
+npx ganache-cli --deterministic
+```
+
+A list of accounts and their private keys will be listed, along with an address
+that can be used to connect to the network. By default this is `localhost:8545`.
