@@ -2,12 +2,14 @@
 pragma solidity >0.6;
 pragma experimental ABIEncoderV2;
 import "./ManagementCommittee.sol";
+import "./ByteUtils.sol";
 
 contract LedgerState {
+    using ByteUtils for bytes;
     enum Status {PROPOSED, RATIFIED, REPLACED, DISPUTED}
 
     struct StateCommitment {
-        bytes32 value;
+        bytes value;
         uint256 atHeight;
         Status status;
         Vote[] votes;
@@ -22,12 +24,12 @@ contract LedgerState {
     }
 
     event CommitmentProposed(
-        bytes32 indexed commitment,
+        bytes indexed commitment,
         string member,
         uint256 indexed atHeight
     );
     event CommitmentRatified(
-        bytes32 indexed commitment,
+        bytes indexed commitment,
         uint256 indexed atHeight,
         uint256 voteTally
     );
@@ -39,8 +41,8 @@ contract LedgerState {
 
     event CommitmentConflictDetected(
         uint256 indexed atHeight,
-        bytes32 assumedComm,
-        bytes32 conflictingComm,
+        bytes assumedComm,
+        bytes conflictingComm,
         string member
     );
 
@@ -120,12 +122,12 @@ contract LedgerState {
         external
         view
         returns (
-            bytes32,
+            bytes memory,
             Status,
             uint256
         )
     {
-        (bytes32 value, Status status) = getCommitmentAt(currentHeight);
+        (bytes memory value, Status status) = getCommitmentAt(currentHeight);
         return (value, status, currentHeight);
     }
 
@@ -136,7 +138,7 @@ contract LedgerState {
     function getCommitmentAt(uint256 atHeight)
         public
         view
-        returns (bytes32, Status)
+        returns (bytes memory, Status)
     {
         StateCommitment memory c = commitments[atHeight];
         return (c.value, c.status);
@@ -146,7 +148,7 @@ contract LedgerState {
         external
         view
         returns (
-            bytes32,
+            bytes memory,
             uint256,
             uint256
         )
@@ -160,7 +162,7 @@ contract LedgerState {
 
     function flagConflict(
         uint256 _height,
-        bytes32 _comm
+        bytes memory _comm
     ) private {
         commitments[_height].status = Status.DISPUTED;
 
@@ -174,17 +176,17 @@ contract LedgerState {
 
     function reportConflictingCommitment(
         uint256 _height,
-        bytes32 _comm
+        bytes memory _comm
     ) external onlyCommitteeMembers validCommitPreconditions(_height) {
         require(
-            commitments[_height].value != _comm,
+            !commitments[_height].value.equals(_comm),
             "a conflicting commitment cannot be the same as the saved commitment"
         );
         flagConflict(_height, _comm);
     }
 
     function postCommitment(
-        bytes32 _comm,
+        bytes memory _comm,
         uint256 _height
     )
         external
@@ -200,7 +202,7 @@ contract LedgerState {
         );
 
         // if this is a vote for an already proposed candidate but is value conflicts with what is already proposed
-        if (_height == candidateHeight && _comm != commitments[candidateHeight].value) {
+        if (_height == candidateHeight && !_comm.equals(commitments[candidateHeight].value)) {
             flagConflict(_height, _comm);
             return false;
         }
