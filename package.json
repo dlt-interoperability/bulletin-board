@@ -1,0 +1,30 @@
+{
+  "name": "bulletin-board",
+  "version": "1.0.0",
+  "description": "The bulletin board is an Ethereum smart contract responsible for managing state commitments coming from a permissioned network. It has two elements:",
+  "directories": {
+    "doc": "docs",
+    "test": "test"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dlt-interoperability/bulletin-board.git"
+  },
+  "author": "Ermyas Abebe",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/dlt-interoperability/bulletin-board/issues"
+  },
+  "homepage": "https://github.com/dlt-interoperability/bulletin-board#readme",
+  "dependencies": {
+    "assertion-error": "^1.1.0",
+    "lodash.isequal": "^4.5.0",
+    "truffle-assertions": "^0.9.2"
+  },
+  "devDependencies": {
+    "ganache-cli": "^6.10.2"
+  }
+}
