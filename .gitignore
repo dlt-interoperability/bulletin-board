@@ -1,3 +1,4 @@
 build/
 .history
 npm_modules/
+node_modules/

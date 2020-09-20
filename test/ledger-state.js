@@ -30,16 +30,18 @@ contract('LedgerState', (accounts) => {
 
   it('should not allow posting of a commitment by non-committee members', async () => {
     const fixComm = toBytes("some commitment");
+    const fixHash = toBytes("");
     const fixHeight = 9;
 
-    await truffleAssert.reverts(lsInstance.postCommitment(fixComm, fixHeight, { from: accounts[4] }));
+    await truffleAssert.reverts(lsInstance.postCommitment(fixComm, fixHash, fixHeight, { from: accounts[4] }));
   });
 
   it('should post a candidate commitment correctly', async () => {
     const fixComm = toBytes("some commitment");
+    const fixHash = toBytes("");
     const fixHeight = 1;
 
-    const updateTx = await lsInstance.postCommitment(fixComm, fixHeight);
+    const updateTx = await lsInstance.postCommitment(fixComm, fixHash, fixHeight);
     const candAcc = await lsInstance.getCandidateCommitment.call();
 
     expect(candAcc[0], "stored candidate commitment does not match expected").to.have.string(fixComm);
@@ -53,13 +55,14 @@ contract('LedgerState', (accounts) => {
 
   it('should handle votes on a candidate commitment correctly', async () => {
     const fixComm = toBytes("some commitment");
+    const fixHash = toBytes("");
     const fixHeight = 2;
 
     await lsInstance.setPolicy(5);
 
-    const updateTx1 = await lsInstance.postCommitment(fixComm, fixHeight);
-    const updateTx2 = await lsInstance.postCommitment(fixComm, fixHeight, { from: accounts[1] });
-    const updateTx3 = await lsInstance.postCommitment(fixComm, fixHeight, { from: accounts[2] });
+    const updateTx1 = await lsInstance.postCommitment(fixComm, fixHash, fixHeight);
+    const updateTx2 = await lsInstance.postCommitment(fixComm, fixHash, fixHeight, { from: accounts[1] });
+    const updateTx3 = await lsInstance.postCommitment(fixComm, fixHash, fixHeight, { from: accounts[2] });
     const candAcc = await lsInstance.getCandidateCommitment.call();
 
     expect(candAcc[0], "stored candidate commitment does not match expected").to.have.string(fixComm);
@@ -73,13 +76,14 @@ contract('LedgerState', (accounts) => {
 
   it('should ratify a candidate commitment if enough votes are received', async () => {
     const fixComm = toBytes("some commitment");
+    const fixHash = toBytes("");
     const fixHeight = 3;
 
     await lsInstance.setPolicy(3);
 
-    await lsInstance.postCommitment(fixComm, fixHeight);
-    await lsInstance.postCommitment(fixComm, fixHeight, { from: accounts[1] });
-    const lastVote = await lsInstance.postCommitment(fixComm, fixHeight, { from: accounts[2] });
+    await lsInstance.postCommitment(fixComm, fixHash, fixHeight);
+    await lsInstance.postCommitment(fixComm, fixHash, fixHeight, { from: accounts[1] });
+    const lastVote = await lsInstance.postCommitment(fixComm, fixHash, fixHeight, { from: accounts[2] });
 
     truffleAssert.eventEmitted(lastVote, 'CommitmentRatified');
 
@@ -90,25 +94,27 @@ contract('LedgerState', (accounts) => {
 
   it('should detect conflicting commitment during voting', async () => {
     const fixComm = toBytes("some commitment");
+    const fixHash = toBytes("");
     const fixBadComm = toBytes("some other commitment");
     const fixHeight = 4;
 
     const lsInstance = await LedgerState.deployed();
     await lsInstance.setPolicy(3);
 
-    await lsInstance.postCommitment(fixComm, fixHeight)
-    const badCommit = await lsInstance.postCommitment(fixBadComm, fixHeight)
+    await lsInstance.postCommitment(fixComm, fixHash, fixHeight)
+    const badCommit = await lsInstance.postCommitment(fixBadComm, fixHash, fixHeight)
     truffleAssert.eventEmitted(badCommit, 'CommitmentConflictDetected');
   });
 
   it('should handle reporting of conflicts correctly', async () => {
     const fixComm = toBytes("some commitment");
     const fixBadComm = toBytes("some other commitment");
+    const fixHash = toBytes("");
     const fixHeight = 5;
 
     await lsInstance.setPolicy(3);
 
-    await lsInstance.postCommitment(fixComm, fixHeight)
+    await lsInstance.postCommitment(fixComm, fixHash, fixHeight)
     const conflictReport = await lsInstance.reportConflictingCommitment(fixHeight, fixBadComm)
     truffleAssert.eventEmitted(conflictReport, 'CommitmentConflictDetected');
   });

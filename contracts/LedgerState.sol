@@ -8,6 +8,7 @@ contract LedgerState {
 
     struct StateCommitment {
         bytes32 value;
+        bytes32 rollingHash;
         uint256 atHeight;
         Status status;
         Vote[] votes;
@@ -185,6 +186,7 @@ contract LedgerState {
 
     function postCommitment(
         bytes32 _comm,
+        bytes32 _rollingHash,
         uint256 _height
     )
         external
@@ -205,9 +207,12 @@ contract LedgerState {
             return false;
         }
 
+        //TODO: compare that the rolling hash matches expected
+
         // this committment supercedes the current candidate
         if (_height > candidateHeight) {
             commitments[_height].value = _comm;
+            commitments[_height].rollingHash = _rollingHash;
             commitments[_height].atHeight = _height;
             candidateHeight = _height;
             emit CommitmentProposed(_comm, committee.getDLTPublicKeyFor(msg.sender), _height);
