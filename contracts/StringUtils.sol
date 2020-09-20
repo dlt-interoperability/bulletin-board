@@ -36,4 +36,3 @@ library StringUtils {
         return equal(str, "");
     }
 }
-

@@ -1,8 +1,7 @@
-const ByteUtils = artifacts.require("ByteUtils");
+const StringUtils = artifacts.require("StringUtils");
 const LedgerState = artifacts.require("LedgerState");
 
 module.exports = function (deployer) {
-  deployer.deploy(ByteUtils);
-  deployer.link(ByteUtils, LedgerState);
+  deployer.deploy(StringUtils);
   deployer.deploy(LedgerState);
 };

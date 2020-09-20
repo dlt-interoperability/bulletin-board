@@ -36,5 +36,3 @@ The bulletin board is an Ethereum smart contract responsible for managing state 
         }
     },
 ```
-
-- deploy the contracts to the network using `truffle deploy dev`
